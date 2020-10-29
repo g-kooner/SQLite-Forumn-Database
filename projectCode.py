@@ -2,10 +2,10 @@ import sys
 import sqlite3
 from datetime import datetime
 
-# class Posts:
-#       #create a static var for pid
-#       #access through an instance or direct thru the class 
-#       pid = 0
+class Votes:
+      #create a static var for pid
+      #access through an instance or direct thru the class 
+      vno = 0
 
 postId = 0
 
@@ -115,7 +115,6 @@ def mainMenu(userId):
     print("ii) Exit")
     print("\n")
 
-
     #users option
     checkOption = True
     while checkOption:
@@ -123,14 +122,19 @@ def mainMenu(userId):
       #check for logout/exit
       if option == 'i' or option == 'ii':
         checkOption = False
+      #check if option is valid integer
+      try:
+        int_option = int(option)
+      except ValueError:
+        print("Enter valid post id value")
+        continue 
       #regular user option check
-      elif isPriv == False:
-        if int(option) <= 4 and int(option) >=1:
+      if isPriv == False:
+        if int_option <= 4 and int_option >=1:
           checkOption = False
       #priveleged user option
-      elif int(option) <= 9 and int(option) >=1:
+      elif int_option <= 9 and int_option >=1:
         checkOption = False
-
     
     #i-->go to first screen
     if option == 'i':
@@ -151,8 +155,7 @@ def mainMenu(userId):
       postAnswer(userId)
     #4-->Vote a Post func call
     elif int(option) == 4:
-      pass
-      #votePost()
+      votePost(userId)
 
 ############################################################
 #Post Question
@@ -239,7 +242,78 @@ def postAnswer(userId):
   return
 
 ############################################################
-#post question
+def votePost(userId):
+  global connection, cursor
+  global postId
+
+  currentDate = datetime.today().strftime('%Y-%m-%d')
+  postIsValid = False
+  
+  #choose post to vote on
+  while postIsValid != True:
+    #user input which post to vote
+    print("select a post to vote on")
+    postToVote = input("ID of post to vote on: ")
+    
+    try:
+      int_postToVote = int(postToVote)
+    except ValueError:
+      print("Enter valid post id value") 
+    else:
+      #get all question posts --> list of nested tupels
+      cursor.execute("SELECT pid FROM posts")
+      posts = cursor.fetchall() 
+      for post in posts:
+        #print("post: ", post)
+        if post[0] == None:
+          break
+        elif int_postToVote == int(post[0]):
+              postIsValid = True
+
+  #compare userID to query the votes table for matching pid and uid
+  cursor.execute("SELECT pid,uid FROM votes")
+  voteInfo = cursor.fetchall()
+  print("voteInfo: ", voteInfo)
+  for vote in voteInfo:
+    #print("vote: ", vote)
+    #empty or initial votes 
+    if vote == None:
+      postIsValid = True
+      break
+    #check if user alrdy voted on this post
+    elif (int_postToVote == int(vote[0])) and (userId == vote[1]):
+      print("user: ",userId, " has already voted on post ", int_postToVote)
+      votePost(userId)  
+
+  #query the votes table to get vno for specific post
+  cursor.execute("SELECT vno FROM votes V,posts P, users U WHERE P.pid = ? AND U.uid = ? AND P.pid = V.pid ", (int_postToVote, userId))
+  currentVno = cursor.fetchall()
+  
+  #cursor.execute("SELECT V.pid FROM votes V,posts P, users U WHERE U.uid = ? and V.uid = ? ", (userId, userId))
+  #postsWithVotes = cursor.fetchall()
+
+  #print("posts with votes by current user: ", postsWithVotes)
+  print("currentVno: ", currentVno)
+  if currentVno == []:
+    updatedVno = 1
+  else:
+    print("current vote #: ", currentVno)
+    #for vno in currentVno:
+    updatedVno = currentVno[0][0] + 1
+  
+  print("updatedVno: ", updatedVno , "for the post: ", int_postToVote)
+  
+  #update votes table and increment vote  
+  cursor.execute('''INSERT INTO votes (pid, vno, vdate, uid) VALUES(?,?,?,?);''',(int_postToVote, updatedVno, currentDate, userId))
+  #commit changes
+  connection.commit()
+  return
+   
+
+
+
+############################################################
+#main
 def main():
     global connection, cursor
     
