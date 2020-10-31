@@ -7,6 +7,7 @@ class Votes:
       #access through an instance or direct thru the class 
       vno = 0
 
+#global variable 
 postId = 0
 
 ###################################################
@@ -171,8 +172,19 @@ def postQuestion(userId):
 
   #access posts class and static var pid
   #print("PostId: ", postId)
-  postId = postId + 1
-  print("postId updated: ", postId)
+  #query the posts table for pid selected by user and specific userId
+  cursor.execute("SELECT P.pid FROM posts P")
+  postId = cursor.fetchall()
+
+  print("before increment postId: ", postId)
+  #intia;/first post made
+  if postId == []:
+    postId = 1
+  else:
+    #assign pid based on how many posts in db
+    postId = len(postId) + 1
+
+  print("after increment postId: ", postId)
 
   #update posts table
   cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(postId,currentDate,qtitle,qbody,userId))
@@ -191,7 +203,7 @@ def postQuestion(userId):
 #Post Answer
 def postAnswer(userId):
   global connection, cursor
-  global postId
+  #global postId
 
   currentDate = datetime.today().strftime('%Y-%m-%d')
   postIsQuestion = False
@@ -220,9 +232,18 @@ def postAnswer(userId):
   atitle = input("Enter title of answer: ")
   abody = input("Enter body of answer: ")
 
-  #increment pid
-  #print("before increment postId: ", postId)
-  postId = postId + 1
+  #query the posts table for pid --> gives # of posts total
+  cursor.execute("SELECT P.pid FROM posts P")
+  postNum = cursor.fetchall()
+
+  print("before increment postNum: ",postNum )
+  #intia;/first post made
+  if postNum == []:
+    postId = 1
+  else:
+    #increment the pid
+    postId = len(postNum) + 1
+
   print("after increment postId: ", postId)
 
   #update posts table
