@@ -327,7 +327,71 @@ def searchPosts(userId):
   #select post to answer
   # #scrolling
   # #select post to vote
-
+  #menu of what to do with posts
+  flag = True
+  while flag == True:
+    print("\nWould you like to...  ")
+    print("0) Main Menu")
+    print("1) Select post to answer")
+    print("2) See next posts")
+    print("3) See previous posts ")
+    print("4) Select post to vote on ")
+    
+    try:
+      option = int(input("Select an option: "))
+    except ValueError:
+      print("Pick a valid option")
+      continue
+    else:
+      #go back to main menu
+      if option == 0:
+        mainMenu(userId)
+      select a post to answer    
+      if option == 1:
+        postIsQuestion = False
+        while postIsQuestion != True:
+          #user input which question post to answer
+          postToAnswer = input("ID of post to answer: ")
+          try:
+            int_postToAnswer = int(postToAnswer)
+          except ValueError:
+            print("Enter valid post id value") 
+          else:
+            #get all question posts --> list of nested tupels
+            cursor.execute("SELECT pid FROM questions")
+            qposts = cursor.fetchall() 
+            for qpost in qposts:
+              print("qpost: ", qpost)
+              if qpost[0] == None:
+                break
+              elif int_postToAnswer == int(qpost[0]):
+                postIsQuestion = True
+                #selected post is a question --> call postAnswer(userId,pid)
+                postAnswer(userId,int_postToAnswer)
+        
+        #vote on a post
+        if option == 4:
+          postIsValid = False
+          #choose post to vote on
+          while postIsValid != True:
+            #user input which post to vote
+            postToVote = input("ID of post to vote on: ")
+            #check if valid int pid
+            try:
+              int_postToVote = int(postToVote)
+            except ValueError:
+              print("Enter valid post id value") 
+            else:
+              #get all question posts --> list of nested tupels
+              cursor.execute("SELECT pid FROM posts")
+              posts = cursor.fetchall() 
+              for post in posts:
+                #print("post: ", post)
+                if post[0] == None:
+                  break
+                elif int_postToVote == int(post[0]):
+                  postIsValid = True
+                  postToVote(userId, int_postToVote)
 
 
   return
@@ -372,37 +436,17 @@ def postAnswer(userId,int_postToAnswer):
 
   #commit changes
   connection.commit()
+  #call main meu
+  
   return
 
 ############################################################
-def votePost(userId):
+def votePost(userId, int_postToVote):
   global connection, cursor
   global postId
 
   currentDate = datetime.today().strftime('%Y-%m-%d')
-  postIsValid = False
   
-  #choose post to vote on
-  while postIsValid != True:
-    #user input which post to vote
-    print("select a post to vote on")
-    postToVote = input("ID of post to vote on: ")
-    
-    try:
-      int_postToVote = int(postToVote)
-    except ValueError:
-      print("Enter valid post id value") 
-    else:
-      #get all question posts --> list of nested tupels
-      cursor.execute("SELECT pid FROM posts")
-      posts = cursor.fetchall() 
-      for post in posts:
-        #print("post: ", post)
-        if post[0] == None:
-          break
-        elif int_postToVote == int(post[0]):
-              postIsValid = True
-
   #compare userID to query the votes table for matching pid and uid
   cursor.execute("SELECT pid,uid FROM votes")
   voteInfo = cursor.fetchall()
