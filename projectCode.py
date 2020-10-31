@@ -23,13 +23,22 @@ def connect(path):
 
 ####################################################
 #INTIAL SIGN UP / LOGIN
-def firstScreen():
-	print("1)Login\n2)Signup")
-	option = int(input("Select an option: "))
-	if option == 1:
-		login()
-	elif option == 2:
-		signup()
+def firstScreen():   
+  flag = True
+  while flag:
+    print("1)Login\n2)Signup")
+    try:
+      option = int(input("Select an option: "))
+    except ValueError:
+      print("Pick a valid option")
+    else:
+      if option == 1:
+        login()
+      elif option == 2:
+        signup()
+      else:
+        print("Pick a valid option")
+    
 ######################################################
 #SIGN UP AND LOGIN
 def signup():
@@ -149,11 +158,11 @@ def mainMenu(userId):
       postQuestion(userId)
     #2-->Search for Post func call  
     elif int(option) == 2:
-      pass
+      searchPosts(userId)
       #searchPost()
     #3-->Post Answer func call
-    elif int(option) == 3:
-      postAnswer(userId)
+    # elif int(option) == 3:
+    #   postAnswer(userId)
     #4-->Vote a Post func call
     elif int(option) == 4:
       votePost(userId)
@@ -198,36 +207,105 @@ def postQuestion(userId):
   #commit changes
   connection.commit()
   return
+#####################################################################################
+#Search Posts
+def searchPosts(userId):
+  global connection, cursor
+  keywords = input("Enter keyword seperated by a space: ")
+  keywords = keywords.split()
+  posts = {}
+  postStartIndex = 0
+  postEndIndex = 6
 
+  #rows of post info and total votes # on post and total answ # on post
+  cursor.execute("SELECT P.pid, P.pdate, P.title, P.body, P.poster, P.tag, ifnull(numVotes,0), ifnull(numAns,0)\
+                  FROM posts P LEFT OUTER JOIN tags T on P.pid = T.pid\
+                  LEFT OUTER JOIN (SELECT P.pid AS vpid, max(V.vno) AS numVotes FROM votes V group by P.pid) ON P.pid = V.vpid\
+                  LEFT OUTER JOIN (SELECT A.qid AS qid, count(*) AS numAns FROM answers A\
+                                   GROUP BY A.qid) on P.pid = A.qid")
+  result = cursor.fetchall()
+  for res in result:
+    #keep track of number of keywords
+    count = 0
+    for word in keywords:
+      #checks if keyword in title 
+      if word.lower() in res[2].lower() or word.lower() in res[3].lower() or word.lower() in res[5].lower():
+        count+=1
+    if count>=1:
+      #adding to key --> res(rows of posts) & values --> count
+      posts[res] = count
+	
+  #PRINTING POSTS AND SELECTING POST TO ANSWER
+  flag = True
+  while flag == True:
+    #query total # of posts --> scroll thru posts
+    cursor.execute("SELECT COUNT(P.pid) FROM posts P")
+    totalPosts = cursor.fetchall()        
+    #orders posts
+    orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
+    #formats posts (only shows 1 to user)
+    print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
+    for i in orderedPosts[postStartIndex : postEndIndex]:
+      body = i[0][3]
+      title = i[0][2]
+      if len(body)>15:
+        body = body[:15]+'...' 
+      if len(title)>10:
+        title = title[:10]+'...'
+      print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format(i[0][0], i[0][1], title,body,i[0][4],i[0][6],i[0][7]))
+    
+    #select the post to answer
+    print("\nWould you like to...  ")
+    print("1) Select post\n2) See next posts\n3) See previous posts\n")
+    try:
+      option = int(input("Select an option: "))
+    except ValueError:
+      print("Pick a valid option")
+    else:
+      #select a post to answer    
+      if option == 1:
+        postIsQuestion = False
+        while postIsQuestion != True:
+          #user input which question post to answer
+          print("select a post that is a question to answer")
+          postToAnswer = input("ID of post to answer: ")
+          try:
+            int_postToAnswer = int(postToAnswer)
+          except ValueError:
+            print("Enter valid post id value") 
+          else:
+            #get all question posts --> list of nested tupels
+            cursor.execute("SELECT pid FROM questions")
+            qposts = cursor.fetchall() 
+            for qpost in qposts:
+              print("qpost: ", qpost)
+              if qpost[0] == None:
+                break
+              elif int_postToAnswer == int(qpost[0]):
+                postIsQuestion = True
+        #selected post is a question --> call postAnswer(userId,pid)
+        postAnswer(userId,int_postToAnswer)
+
+      #see next posts(next 5)
+      #less than total # posts    
+      elif (option == 2) and (postEndIndex <= totalPosts):
+        postStartIndex = postStartIndex + 5
+        postEndIndex = postEndIndex + 6
+      #see prev posts(back 5)
+      elif (option == 3) and (postStartIndex >= 5):
+        postStartIndex = postStartIndex - 5
+        postEndIndex = postEndIndex - 6
+      else:
+        print("invalid option")
+    
 #####################################################################################
 #Post Answer
-def postAnswer(userId):
+def postAnswer(userId,int_postToAnswer):
   global connection, cursor
   #global postId
 
   currentDate = datetime.today().strftime('%Y-%m-%d')
-  postIsQuestion = False
-
-  while postIsQuestion != True:
-    #user input which question post to answer
-    print("select a post that is a question to answer")
-    postToAnswer = input("ID of post to answer: ")
-    
-    try:
-      int_postToAnswer = int(postToAnswer)
-    except ValueError:
-      print("Enter valid post id value") 
-    else:
-      #get all question posts --> list of nested tupels
-      cursor.execute("SELECT pid FROM questions")
-      qposts = cursor.fetchall() 
-      for qpost in qposts:
-        print("qpost: ", qpost)
-        if qpost[0] == None:
-          break
-        elif int_postToAnswer == int(qpost[0]):
-              postIsQuestion = True
-
+  
   #take answer title and body from users
   atitle = input("Enter title of answer: ")
   abody = input("Enter body of answer: ")
