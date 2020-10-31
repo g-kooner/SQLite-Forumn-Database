@@ -1,6 +1,7 @@
 import sys
 import sqlite3
 from datetime import datetime
+from collections import defaultdict
 
 class Votes:
       #create a static var for pid
@@ -211,92 +212,125 @@ def postQuestion(userId):
 #Search Posts
 def searchPosts(userId):
   global connection, cursor
-  keywords = input("Enter keyword seperated by a space: ")
+  keywords = input("Enter keywords (seperate by space): ")
   keywords = keywords.split()
   posts = {}
-  postStartIndex = 0
-  postEndIndex = 6
+  #dict with values as list storage
+  tagsDict = defaultdict(list)
 
-  #rows of post info and total votes # on post and total answ # on post
-  cursor.execute("SELECT P.pid, P.pdate, P.title, P.body, P.poster, P.tag, ifnull(numVotes,0), ifnull(numAns,0)\
-                  FROM posts P LEFT OUTER JOIN tags T on P.pid = T.pid\
-                  LEFT OUTER JOIN (SELECT P.pid AS vpid, max(V.vno) AS numVotes FROM votes V group by P.pid) ON P.pid = V.vpid\
-                  LEFT OUTER JOIN (SELECT A.qid AS qid, count(*) AS numAns FROM answers A\
-                                   GROUP BY A.qid) on P.pid = A.qid")
-  result = cursor.fetchall()
-  for res in result:
-    #keep track of number of keywords
+  #post info ifnull(tag, '')
+  cursor.execute("SELECT p.pid,pdate,title,body,poster,ifnull(numVotes,0),ifnull(numAns,0)\
+                  FROM posts p LEFT OUTER JOIN  tags t ON t.pid = p.pid and t.tag IS NOT NULL\
+                               LEFT OUTER JOIN (SELECT pid AS vpid, max(vno) AS numVotes FROM votes v GROUP BY pid) ON p.pid = vpid\
+                               LEFT OUTER JOIN (SELECT a.qid AS qid, count(*) AS numAns FROM answers a GROUP BY qid) on p.pid = qid")
+  #list of posts with info
+  resultPosts = cursor.fetchall()
+  # for res in resultPosts:
+  #   print("res row: ", res )
+
+
+
+  #tag words for specific post
+  cursor.execute("SELECT t.pid, t.tag FROM tags t, posts p WHERE p.pid = t.pid")
+  tags = cursor.fetchall()
+
+  #query for all distinct pids
+  cursor.execute("SELECT DISTINCT p.pid FROM posts p")
+  distinctPids = cursor.fetchall()
+
+
+  for tag in tags:
+    for pid in distinctPids:
+      # print("type of tag0: ", type(tag[0]))
+      # print("tag[0] --> pid: ",tag[0])
+      # print("tag[1] --> tag: ",tag[1])
+      # print("pid: ",pid)
+      # print("\n")
+      #checks if t.pid matches distinct pids and its tag is not none
+      if (tag[0] == pid[0]) and (tag[1] != ''):
+        tagsDict[tag[0]].append(tag[1])
+  #print("tagsDict: ", tagsDict)
+
+  #combining the tagsDict and resultPosts
+  for keyTags in tagsDict.keys():
+    for res in resultPosts:
+      #comparing pids to check if same
+      if (res[0] == keyTags): #and (res[5] != ''):
+        #convert res to list 
+        resList = list(res)
+        #append tags to the res list
+        resList.append(tuple(tagsDict[keyTags]))
+        #convert back to tuple
+        finalRes = tuple(resList)
+        #print("final res: ", finalRes)
+        posts[finalRes] = 0
+  
+
+  #keep track if keyword found
+  keywordFound = False
+  #counts for keywords
+  for res in posts:
     count = 0
     for word in keywords:
-      #checks if keyword in title 
-      if word.lower() in res[2].lower() or word.lower() in res[3].lower() or word.lower() in res[5].lower():
-        count+=1
-    if count>=1:
-      #adding to key --> res(rows of posts) & values --> count
-      posts[res] = count
-	
-  #PRINTING POSTS AND SELECTING POST TO ANSWER
-  flag = True
-  while flag == True:
-    #query total # of posts --> scroll thru posts
-    cursor.execute("SELECT COUNT(P.pid) FROM posts P")
-    totalPosts = cursor.fetchall()        
-    #orders posts
-    orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
-    #formats posts (only shows 1 to user)
-    print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
-    for i in orderedPosts[postStartIndex : postEndIndex]:
-      body = i[0][3]
-      title = i[0][2]
-      if len(body)>15:
-        body = body[:15]+'...' 
-      if len(title)>10:
-        title = title[:10]+'...'
-      print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format(i[0][0], i[0][1], title,body,i[0][4],i[0][6],i[0][7]))
-    
-    #select the post to answer
-    print("\nWould you like to...  ")
-    print("1) Select post\n2) See next posts\n3) See previous posts\n")
-    try:
-      option = int(input("Select an option: "))
-    except ValueError:
-      print("Pick a valid option")
-    else:
-      #select a post to answer    
-      if option == 1:
-        postIsQuestion = False
-        while postIsQuestion != True:
-          #user input which question post to answer
-          print("select a post that is a question to answer")
-          postToAnswer = input("ID of post to answer: ")
-          try:
-            int_postToAnswer = int(postToAnswer)
-          except ValueError:
-            print("Enter valid post id value") 
-          else:
-            #get all question posts --> list of nested tupels
-            cursor.execute("SELECT pid FROM questions")
-            qposts = cursor.fetchall() 
-            for qpost in qposts:
-              print("qpost: ", qpost)
-              if qpost[0] == None:
-                break
-              elif int_postToAnswer == int(qpost[0]):
-                postIsQuestion = True
-        #selected post is a question --> call postAnswer(userId,pid)
-        postAnswer(userId,int_postToAnswer)
+      #check if keyword in title or body
+      if (word.lower() in res[2].lower()) or (word.lower() in res[3].lower()):
+        count = count + 1
+      #loop to check the tags --> increment count only if tag not none and count = 0
+      for tag in res[7]:
+        if (tag != None) and (count == 0):
+          if word.lower() in tag.lower():
+            count = count + 1
+      if count>=1:
+        posts[res] = count
+        #checks if @ least 1 keyword found
+        #keyword found in atleast one post
+        keywordFound = True
+  
+  #keyword not found in all posts then loop back
+  if not keywordFound:
+    print("keyword not found")
+    searchPosts(userId)
+  
+  # print("\n")
+  # print("postDict: ")
+  # #print posts dict
+  # for keys,values in posts.items():
+  #   print("post info / value: ", keys,values)
 
-      #see next posts(next 5)
-      #less than total # posts    
-      elif (option == 2) and (postEndIndex <= totalPosts):
-        postStartIndex = postStartIndex + 5
-        postEndIndex = postEndIndex + 6
-      #see prev posts(back 5)
-      elif (option == 3) and (postStartIndex >= 5):
-        postStartIndex = postStartIndex - 5
-        postEndIndex = postEndIndex - 6
-      else:
-        print("invalid option")
+
+  # #print the posts dict
+  # print("\nposts dict: \n")
+  # #print(posts)
+
+  # for keys,values in posts.items():
+  #   print("post info: ", keys)
+  #   print("values: ",values)
+  
+  
+  
+  orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
+  # for row in orderedPosts:
+  #   print("ordered posts: ", row)
+
+
+  #format and print the resutls of search for post
+  print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
+  for i in orderedPosts:
+    body=i[0][3]
+    title = i[0][2]
+    if len(body)>15:
+      body = body[:15]+'...' 
+    if len(title)>10:
+      title = title[:10]+'...'
+    print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format(i[0][0], i[0][1], title,body,i[0][4], i[0][5], i[0][6]))
+
+  #select post to answer
+  # #scrolling
+  # #select post to vote
+
+
+
+  return
     
 #####################################################################################
 #Post Answer
@@ -424,6 +458,66 @@ def votePost(userId):
   #commit changes
   connection.commit()
   return
+
+
+############################################################
+#TAGS
+def addTag(userId):
+  global connection, cursor
+  global postId
+
+  postIsSelectedPost= False
+  while postIsSelectedPost!= True:
+  #user input which post to add a tag on
+    print("select a post to add a tag on")
+    postToTag = input("ID of post to tag: ")
+    try:
+      int_postToTag = int(postToTag)
+    except ValueError:
+      print("Enter valid post id value") 
+    else:
+      #get all question posts --> list of nested tupels
+      cursor.execute("SELECT pid FROM posts")
+      tposts = cursor.fetchall() 
+      for tpost in tposts:
+        #print("qpost: ", qpost)
+          if tpost[0] == None:
+            break
+          elif int_postToTag == int(tpost[0]):
+            #show the post you chose
+            cursor.execute("SELECT * FROM posts P WHERE P.pid = ?", (postToTag,))
+            selected_Post = cursor.fetchall() 
+            print(selected_Post)
+            postIsSelectedPost= True
+
+  #user picks tag to insert on chosen post
+  user_Tag = input("insert tag: ")
+
+  #selected_posts_tags has all tags for the post
+  cursor.execute("SELECt T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag,))
+  selected_posts_tags = cursor.fetchall()
+
+  
+  #condition to check if tag already used
+  for tag in selected_posts_tags:
+    if user_Tag in tag:
+      print("Tag already used")
+      #addTag(userId)
+      mainMenu(userId)
+      
+  
+
+  #update tags table 
+  cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(int_postToTag, user_Tag))
+
+  #confirms to user their tag was added
+  print("Tag added")
+    
+    
+  #commit changes
+  connection.commit()
+  return
+
 
 ############################################################
 #main
