@@ -324,7 +324,7 @@ def searchPosts(userId):
     if isPriv:
       print("5) Post action-Mark")
       print("6) Post action-Give")
-      print("7) Post action-Add")
+      print("7) Post action-Add Tag")
       print("8) Post action-edit")
     
     try:
@@ -412,7 +412,27 @@ def searchPosts(userId):
 
         #priv user Post-Action-Add Tag
         if option == 7:
-          print("test1")
+          postIsValid = False
+          #choose post to vote on
+          while postIsValid != True:
+            #user input which post to vote
+            postToTag = input("ID of post to tag: ")
+            #check if valid int pid
+            try:
+              int_postToTag = int(postToTag)
+            except ValueError:
+              print("Enter valid post id value") 
+            else:
+              #get all question posts --> list of nested tupels
+              cursor.execute("SELECT pid FROM posts")
+              posts = cursor.fetchall() 
+              for post in posts:
+                #print("post: ", post)
+                if post[0] == None:
+                  break
+                elif int_postToTag == int(post[0]):
+                  postIsValid = True
+                  postActionAddTag(userId, int_postToTag)
 
         #priv user Post-Action-Edit
         if option == 8:
@@ -533,61 +553,37 @@ def votePost(userId, int_postToVote):
 
 ############################################################
 #TAGS
-def addTag(userId):
+def postActionAddTag(userId, int_postToTag):
   global connection, cursor
   global postId
-
-  postIsSelectedPost= False
-  while postIsSelectedPost!= True:
-  #user input which post to add a tag on
-    print("select a post to add a tag on")
-    postToTag = input("ID of post to tag: ")
-    try:
-      int_postToTag = int(postToTag)
-    except ValueError:
-      print("Enter valid post id value") 
-    else:
-      #get all question posts --> list of nested tupels
-      cursor.execute("SELECT pid FROM posts")
-      tposts = cursor.fetchall() 
-      for tpost in tposts:
-        #print("qpost: ", qpost)
-          if tpost[0] == None:
-            break
-          elif int_postToTag == int(tpost[0]):
-            #show the post you chose
-            cursor.execute("SELECT * FROM posts P WHERE P.pid = ?", (postToTag,))
-            selected_Post = cursor.fetchall() 
-            print(selected_Post)
-            postIsSelectedPost= True
 
   #user picks tag to insert on chosen post
   user_Tag = input("insert tag: ")
 
   #selected_posts_tags has all tags for the post
-  cursor.execute("SELECt T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag,))
+  cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (int_postToTag,))
   selected_posts_tags = cursor.fetchall()
 
-  
+  print("selected posts tags: ", selected_posts_tags)
   #condition to check if tag already used
   for tag in selected_posts_tags:
-    if user_Tag in tag:
-      print("Tag already used")
+    #print("tag: ",tag)
+    #print("user tag: ", user_Tag)
+    #tag[0] will always be none
+    #check if tag is not none
+    if(tag[0] == None and len(selected_posts_tags) == 0):
+      break
+    if (tag[0] != None) and (user_Tag.lower() == tag[0].lower()):
+      print("\nTAG IS ALREADY USED\n")
       #addTag(userId)
       mainMenu(userId)
-      
-  
-
   #update tags table 
   cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(int_postToTag, user_Tag))
-
   #confirms to user their tag was added
-  print("Tag added")
-    
-    
+  print("\nTAG ADDED\n")
   #commit changes
   connection.commit()
-  return
+  mainMenu(userId)
 
 
 ############################################################
