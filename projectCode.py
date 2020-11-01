@@ -102,24 +102,6 @@ def mainMenu(userId):
     #menu options for regular / priveleged users
     print("1) Post a question")
     print("2) Search for posts")
-    print("3) Post action-Answer")
-    print("4) Post action-Vote")
-    
-    #check if priveleged user
-    cursor.execute("SELECT uid FROM privileged ")
-    privilegedUsers = cursor.fetchall()
-    isPriv = False
-    for pUser in privilegedUsers:
-      if userId == pUser[0]:
-        isPriv = True 
-
-    #priveleged user menu extra features
-    if isPriv:
-      print("5) Post action-Mark")
-      print("6) Post action-Give")
-      print("7) Post action-Add")
-      print("8) Post action-edit")
-
     #logout option
     print("i) Logout")
     #exit
@@ -140,11 +122,7 @@ def mainMenu(userId):
         print("Enter valid post id value")
         continue 
       #regular user option check
-      if isPriv == False:
-        if int_option <= 4 and int_option >=1:
-          checkOption = False
-      #priveleged user option
-      elif int_option <= 9 and int_option >=1:
+      if int_option <= 2 and int_option >=1:
         checkOption = False
     
     #i-->go to first screen
@@ -160,14 +138,6 @@ def mainMenu(userId):
     #2-->Search for Post func call  
     elif int(option) == 2:
       searchPosts(userId)
-      #searchPost()
-    #3-->Post Answer func call
-    # elif int(option) == 3:
-    #   postAnswer(userId)
-    #4-->Vote a Post func call
-    elif int(option) == 4:
-      votePost(userId)
-
 ############################################################
 #Post Question
 def postQuestion(userId):
@@ -288,8 +258,8 @@ def searchPosts(userId):
   
   #keyword not found in all posts then loop back
   if not keywordFound:
-    print("keyword not found")
-    searchPosts(userId)
+    print("\nKEYWORD NOT FOUND\n")
+    mainMenu(userId)
   
   # print("\n")
   # print("postDict: ")
@@ -311,31 +281,51 @@ def searchPosts(userId):
   orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
   # for row in orderedPosts:
   #   print("ordered posts: ", row)
+  
+  #intial setup for post start and post end indices
+  postStartIndex = 0
+  postEndIndex = 5
+  
 
-
-  #format and print the resutls of search for post
-  print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
-  for i in orderedPosts:
-    body=i[0][3]
-    title = i[0][2]
-    if len(body)>15:
-      body = body[:15]+'...' 
-    if len(title)>10:
-      title = title[:10]+'...'
-    print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format(i[0][0], i[0][1], title,body,i[0][4], i[0][5], i[0][6]))
-
-  #select post to answer
-  # #scrolling
-  # #select post to vote
-  #menu of what to do with posts
   flag = True
   while flag == True:
+    #format and print the resutls of search for post
+    print("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
+    for i in orderedPosts[postStartIndex : postEndIndex]:
+      body=i[0][3]
+      title = i[0][2]
+      if len(body)>15:
+        body = body[:15]+'...' 
+      if len(title)>10:
+        title = title[:10]+'...'
+      print ("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format(i[0][0], i[0][1], title,body,i[0][4], i[0][5], i[0][6]))
+
+    #select post to answer
+    # #scrolling
+    # #select post to vote
+    #menu of what to do with posts
+
     print("\nWould you like to...  ")
     print("0) Main Menu")
-    print("1) Select post to answer")
-    print("2) See next posts")
-    print("3) See previous posts ")
+    print("1) See next posts")
+    print("2) See previous posts ")
+    print("3) Select post to answer")
     print("4) Select post to vote on ")
+    #priveleged user menu 
+    #check if priveleged user
+    cursor.execute("SELECT uid FROM privileged ")
+    privilegedUsers = cursor.fetchall()
+    isPriv = False
+    for pUser in privilegedUsers:
+      if userId == pUser[0]:
+        isPriv = True 
+
+    #priveleged user menu extra features(only display if priv)
+    if isPriv:
+      print("5) Post action-Mark")
+      print("6) Post action-Give")
+      print("7) Post action-Add")
+      print("8) Post action-edit")
     
     try:
       option = int(input("Select an option: "))
@@ -346,8 +336,26 @@ def searchPosts(userId):
       #go back to main menu
       if option == 0:
         mainMenu(userId)
-      select a post to answer    
+
+      #see next posts
+      #python truncates out of bounds values when slicing
       if option == 1:
+        if postEndIndex < len(orderedPosts):
+          postStartIndex = postStartIndex + 5
+          postEndIndex = postEndIndex + 5
+        else:
+          print("\nNO MORE POSTS\n")
+      
+      #see prev posts
+      if option == 2:
+        if postStartIndex >=5:
+          postStartIndex = postStartIndex - 5
+          postEndIndex = postEndIndex - 5
+        else:
+          print("\nNO MORE PREVIOUS POSTS\n") 
+
+      #select a post to answer    
+      if option == 3:
         postIsQuestion = False
         while postIsQuestion != True:
           #user input which question post to answer
@@ -369,30 +377,46 @@ def searchPosts(userId):
                 #selected post is a question --> call postAnswer(userId,pid)
                 postAnswer(userId,int_postToAnswer)
         
-        #vote on a post
-        if option == 4:
-          postIsValid = False
-          #choose post to vote on
-          while postIsValid != True:
-            #user input which post to vote
-            postToVote = input("ID of post to vote on: ")
-            #check if valid int pid
-            try:
-              int_postToVote = int(postToVote)
-            except ValueError:
-              print("Enter valid post id value") 
-            else:
-              #get all question posts --> list of nested tupels
-              cursor.execute("SELECT pid FROM posts")
-              posts = cursor.fetchall() 
-              for post in posts:
-                #print("post: ", post)
-                if post[0] == None:
-                  break
-                elif int_postToVote == int(post[0]):
-                  postIsValid = True
-                  postToVote(userId, int_postToVote)
+      #vote on a post
+      if option == 4:
+        postIsValid = False
+        #choose post to vote on
+        while postIsValid != True:
+          #user input which post to vote
+          postToVote = input("ID of post to vote on: ")
+          #check if valid int pid
+          try:
+            int_postToVote = int(postToVote)
+          except ValueError:
+            print("Enter valid post id value") 
+          else:
+            #get all question posts --> list of nested tupels
+            cursor.execute("SELECT pid FROM posts")
+            posts = cursor.fetchall() 
+            for post in posts:
+              #print("post: ", post)
+              if post[0] == None:
+                break
+              elif int_postToVote == int(post[0]):
+                postIsValid = True
+                votePost(userId, int_postToVote)
+      
+      if isPriv:
+        #priv user Post Action Mark
+        if option == 5 :
+          print("test1")
+        
+        #priv user Post-Action-Give Badge
+        if option == 6:
+          print("test1")
 
+        #priv user Post-Action-Add Tag
+        if option == 7:
+          print("test1")
+
+        #priv user Post-Action-Edit
+        if option == 8:
+          print("test1")
 
   return
     
@@ -436,8 +460,9 @@ def postAnswer(userId,int_postToAnswer):
 
   #commit changes
   connection.commit()
-  #call main meu
-  
+  #call main menu
+  mainMenu(userId)
+
   return
 
 ############################################################
@@ -472,14 +497,14 @@ def votePost(userId, int_postToVote):
       
       print("distinct pids: ", distinctPids)
       print("total pids: ", totalPids)
-      
+
       #call main menu if voted on all posts 
       if distinctPids == totalPids:
         print("user has voted on all possible votes return to main menu")
         mainMenu(userId)
   
-      #otherwise call vote func and vote on another pid
-      votePost(userId)  
+      #go back to search post menu
+      return  
 
   #query the votes table to get vno for specific post
   #cursor.execute("SELECT vno FROM votes V,posts P, users U WHERE P.pid = ? AND U.uid = ? AND P.pid = V.pid ", (int_postToVote, userId))
@@ -501,6 +526,8 @@ def votePost(userId, int_postToVote):
   cursor.execute('''INSERT INTO votes (pid, vno, vdate, uid) VALUES(?,?,?,?);''',(int_postToVote, updatedVno, currentDate, userId))
   #commit changes
   connection.commit()
+  #send to main menu
+  mainMenu(userId)
   return
 
 
