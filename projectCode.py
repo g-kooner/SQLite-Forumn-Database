@@ -240,21 +240,24 @@ def searchPosts(userId):
   keywordFound = False
   #counts for keywords
   for res in posts:
+    #print("res: ", res)
     count = 0
     for word in keywords:
       #check if keyword in title or body
       if (word.lower() in res[2].lower()) or (word.lower() in res[3].lower()):
         count = count + 1
       #loop to check the tags --> increment count only if tag not none and count = 0
+      #print("count before tag: ", count)
       for tag in res[7]:
         if (tag != None) and (count == 0):
           if word.lower() in tag.lower():
             count = count + 1
-      if count>=1:
-        posts[res] = count
-        #checks if @ least 1 keyword found
-        #keyword found in atleast one post
-        keywordFound = True
+        if count>=1:
+          posts[res] = count
+          #checks if @ least 1 keyword found
+          #keyword found in atleast one post
+          keywordFound = True
+      #print("count after tag: ", count)
   
   #keyword not found in all posts then loop back
   if not keywordFound:
@@ -279,8 +282,12 @@ def searchPosts(userId):
   
   
   orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
-  # for row in orderedPosts:
-  #   print("ordered posts: ", row)
+  newOrderedPost = []
+  for row in orderedPosts:
+    #print("ordered posts: ", row)
+    #if count is 0 do not include in newOrdered posts to print
+    if row[1] != 0:
+      newOrderedPost.append(row)
   
   #intial setup for post start and post end indices
   postStartIndex = 0
@@ -291,7 +298,8 @@ def searchPosts(userId):
   while flag == True:
     #format and print the resutls of search for post
     print("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
-    for i in orderedPosts[postStartIndex : postEndIndex]:
+    #for i in orderedPosts[postStartIndex : postEndIndex]:
+    for i in newOrderedPost[postStartIndex : postEndIndex]:
       body=i[0][3]
       title = i[0][2]
       if len(body)>15:
@@ -403,9 +411,30 @@ def searchPosts(userId):
       
       if isPriv:
         #priv user Post Action Mark
+        #pick an answer post and you can make it the accepted answers for its question post
         if option == 5 :
-          print("test1")
-        
+          #choose a valid post
+          postIsValid = False
+          #choose post to vote on
+          while postIsValid != True:
+            #user input which post to vote
+            postAnswToEdit = input("Pick ID of an answer post to mark it(make accepted answer of question)")
+            #check if valid int pid
+            try:
+              int_postAnswToEdit = int(postAnswToEdit)
+            except ValueError:
+              print("Enter valid answer post id value: ") 
+            else:    
+              #check if post is answer
+              cursor.execute("SELECT pid FROM answers where pid = ?",(int_postAnswToEdit,))
+              ans = cursor.fetchall()
+              if ans:
+                #call post action mark
+                postActionMark(userId,int_postAnswToEdit)
+              else:
+                print("\nPICK A POST THAT IS AN ANSWR\n")
+            
+         
         #priv user Post-Action-Give Badge
         if option == 6:
           print("test1")
@@ -550,6 +579,42 @@ def votePost(userId, int_postToVote):
   mainMenu(userId)
   return
 
+############################################################
+#ACCEPTED ANSWER / EDIT ANSWER
+def postActionMark(userId,int_postAnswToEdit):
+  global connection, cursor
+  validResponse = False  
+  #get tuple form answer table that has pid of and and qid of question it refers to 
+  cursor.execute("SELECT * FROM answers where pid =?",(int_postAnswToEdit,))
+  answersTable = cursor.fetchall()
+  #the question it refers to is the second value in tuple
+  question = answersTable[0][1]
+  cursor.execute("SELECT*FROM questions where pid =?",(question,))
+  #check what accepted answer for that question is
+  questionsTable = cursor.fetchall()
+  acceptedAns = questionsTable[0][1]
+
+  if acceptedAns == None:
+  #update theaid in the questions table with the pid the user chose
+    cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(int_postAnswToEdit,question))
+    print("Accepted answer for question %s is now %s." %(question,int_postAnswToEdit))
+  else:
+    while validResponse == False:
+      change = input("This question already has an accepted answer. Would you like to change it? (y/n)").lower()
+      if change == 'y':
+        validResponse = True
+        cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(int_postAnswToEdit,question))
+        print("Accepted answer for question %s is now %s." %(question,int_postAnswToEdit))
+      elif change == 'n':
+        validResponse = True
+        print("Accepted answer not changed")
+      else:
+        print("Pick valid option")
+        
+
+  connection.commit()
+  mainMenu(userId)
+  return
 
 ############################################################
 #TAGS
