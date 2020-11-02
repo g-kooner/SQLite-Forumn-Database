@@ -330,10 +330,10 @@ def searchPosts(userId):
 
     #priveleged user menu extra features(only display if priv)
     if isPriv:
-      print("5) Post action-Mark")
-      print("6) Post action-Give")
+      print("5) Post action-Mark as Accepted")
+      print("6) Post action-Give Badge ")
       print("7) Post action-Add Tag")
-      print("8) Post action-edit")
+      print("8) Post action-Edit Title/Body")
     
     try:
       option = int(input("Select an option: "))
@@ -368,46 +368,38 @@ def searchPosts(userId):
         while postIsQuestion != True:
           #user input which question post to answer
           postToAnswer = input("ID of post to answer: ")
-          try:
-            int_postToAnswer = int(postToAnswer)
-          except ValueError:
-            print("Enter valid post id value") 
-          else:
-            #get all question posts --> list of nested tupels
-            cursor.execute("SELECT pid FROM questions")
-            qposts = cursor.fetchall() 
-            for qpost in qposts:
-              print("qpost: ", qpost)
-              if qpost[0] == None:
+          #get all question posts --> list of nested tupels
+          cursor.execute("SELECT pid FROM questions")
+          qposts = cursor.fetchall()
+          #check that pid is questions pid
+          for qpid in qposts:
+            if qpid[0] == postToAnswer:
+              print("qpost: ", qpid)
+              if qpid[0] == None:
                 break
-              elif int_postToAnswer == int(qpost[0]):
+              else:
                 postIsQuestion = True
                 #selected post is a question --> call postAnswer(userId,pid)
-                postAnswer(userId,int_postToAnswer)
-        
+                postAnswer(userId,qpid)
+       
       #vote on a post
       if option == 4:
         postIsValid = False
         #choose post to vote on
         while postIsValid != True:
           #user input which post to vote
-          postToVote = input("ID of post to vote on: ")
-          #check if valid int pid
-          try:
-            int_postToVote = int(postToVote)
-          except ValueError:
-            print("Enter valid post id value") 
-          else:
-            #get all question posts --> list of nested tupels
-            cursor.execute("SELECT pid FROM posts")
-            posts = cursor.fetchall() 
-            for post in posts:
-              #print("post: ", post)
+          postToVote = input("ID of post to vote on: ") 
+          #get all question posts --> list of nested tupels
+          cursor.execute("SELECT pid FROM posts")
+          posts = cursor.fetchall() 
+          for post in posts:
+            #print("post: ", post)
+            if post[0] == postToVote:
               if post[0] == None:
                 break
-              elif int_postToVote == int(post[0]):
+              else:
                 postIsValid = True
-                votePost(userId, int_postToVote)
+                votePost(userId, postToVote)
       
       if isPriv:
         #priv user Post Action Mark
@@ -418,26 +410,31 @@ def searchPosts(userId):
           #choose post to vote on
           while postIsValid != True:
             #user input which post to vote
-            postAnswToEdit = input("Pick ID of an answer post to mark it(make accepted answer of question)")
-            #check if valid int pid
-            try:
-              int_postAnswToEdit = int(postAnswToEdit)
-            except ValueError:
-              print("Enter valid answer post id value: ") 
-            else:    
-              #check if post is answer
-              cursor.execute("SELECT pid FROM answers where pid = ?",(int_postAnswToEdit,))
-              ans = cursor.fetchall()
-              if ans:
-                #call post action mark
-                postActionMark(userId,int_postAnswToEdit)
-              else:
-                print("\nPICK A POST THAT IS AN ANSWR\n")
+            postAnswToEdit = input("Pick ID of an answer post to mark it(make accepted answer of question): ")  
+            #check if post is answer
+            cursor.execute("SELECT pid FROM answers where pid = ?",(postAnswToEdit,))
+            ans = cursor.fetchall()
+            if ans:
+              #call post action mark
+              postActionMark(userId,postAnswToEdit)
+            else:
+              print("\nPICK A POST THAT IS AN ANSWER\n")
             
          
         #priv user Post-Action-Give Badge
         if option == 6:
-          print("test1")
+          validUser = False
+          while validUser != True:
+            user = input("UID of User to give a badge to: ")
+            #query users to check if valid user id given
+            cursor.execute("SELECT P.poster FROM users U, posts P WHERE U.uid = P.poster")
+            posters = cursor.fetchall()
+            for poster in posters:
+              if poster[0] == None:
+                break
+              elif poster[0] == user:
+                validUser = True
+                postActionGive(user,userId)
 
         #priv user Post-Action-Add Tag
         if option == 7:
@@ -447,31 +444,43 @@ def searchPosts(userId):
             #user input which post to vote
             postToTag = input("ID of post to tag: ")
             #check if valid int pid
-            try:
-              int_postToTag = int(postToTag)
-            except ValueError:
-              print("Enter valid post id value") 
-            else:
-              #get all question posts --> list of nested tupels
-              cursor.execute("SELECT pid FROM posts")
-              posts = cursor.fetchall() 
-              for post in posts:
+            #get all question posts --> list of nested tupels
+            cursor.execute("SELECT pid FROM posts")
+            posts = cursor.fetchall() 
+            for post in posts:
+              if post[0] == postToTag:
                 #print("post: ", post)
                 if post[0] == None:
                   break
-                elif int_postToTag == int(post[0]):
+                elif postToTag == post[0]:
                   postIsValid = True
-                  postActionAddTag(userId, int_postToTag)
+                  postActionAddTag(userId, postToTag)
 
         #priv user Post-Action-Edit
         if option == 8:
-          print("test1")
+          postIsValid = False
+          #choose post to vote on
+          while postIsValid != True:
+            #user input which post to vote
+            postToEdit = input("ID of post to edit title/body: ")
+            #check if valid int pid
+            #get all question posts --> list of nested tupels
+            cursor.execute("SELECT pid FROM posts")
+            posts = cursor.fetchall() 
+            for post in posts:
+              if post[0] == postToEdit:
+                #print("post: ", post)
+                if post[0] == None:
+                  break
+                elif postToEdit == post[0]:
+                  postIsValid = True
+                  postActionEdit(userId, postToEdit)
 
   return
     
 #####################################################################################
 #Post Answer
-def postAnswer(userId,int_postToAnswer):
+def postAnswer(userId,qpid):
   global connection, cursor
   #global postId
 
@@ -499,7 +508,7 @@ def postAnswer(userId,int_postToAnswer):
   cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(postId,currentDate,atitle,abody,userId))
 
   #update the answers table 
-  cursor.execute('''INSERT INTO answers (pid, qid)VALUES(?,?);''',(postId,int_postToAnswer))
+  cursor.execute('''INSERT INTO answers (pid, qid)VALUES(?,?);''', (postId,qpid[0]))
 
   #update the questions table 
   #cursor.execute('''UPDATE questions SET theaid = postID ;''',(postId, ))
@@ -515,7 +524,7 @@ def postAnswer(userId,int_postToAnswer):
   return
 
 ############################################################
-def votePost(userId, int_postToVote):
+def votePost(userId, postToVote):
   global connection, cursor
   global postId
 
@@ -532,8 +541,8 @@ def votePost(userId, int_postToVote):
       postIsValid = True
       break
     #check if user alrdy voted on this post
-    elif (int_postToVote == int(vote[0])) and (userId == vote[1]):
-      print("user: ",userId, " has already voted on post ", int_postToVote)
+    elif (postToVote[0] == vote[0]) and (userId == vote[1]):
+      print("\nUSER: ",userId, " HAS ALREADY VOTED ON POST: ", postToVote[0])
       #check if user has voted on all posts
       #query distinct pids from votes and compare with total posts to check if user has voted on all  posts
       cursor.execute("SELECT DISTINCT V.pid FROM votes V WHERE V.uid = ?", (userId,))
@@ -544,12 +553,12 @@ def votePost(userId, int_postToVote):
       distinctPids.sort()
       totalPids.sort()
       
-      print("distinct pids: ", distinctPids)
-      print("total pids: ", totalPids)
+      #print("distinct pids: ", distinctPids)
+      #print("total pids: ", totalPids)
 
       #call main menu if voted on all posts 
       if distinctPids == totalPids:
-        print("user has voted on all possible votes return to main menu")
+        print("\nUSER HAS VOTED ON ALL POSSIBLE POSTS WILL RETURN TO MAIN MENU\n")
         mainMenu(userId)
   
       #go back to search post menu
@@ -557,7 +566,7 @@ def votePost(userId, int_postToVote):
 
   #query the votes table to get vno for specific post
   #cursor.execute("SELECT vno FROM votes V,posts P, users U WHERE P.pid = ? AND U.uid = ? AND P.pid = V.pid ", (int_postToVote, userId))
-  cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (int_postToVote,))  
+  cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (postToVote[0],))  
   currentVno = cursor.fetchall()
   
   #print("posts with votes by current user: ", postsWithVotes)
@@ -569,10 +578,10 @@ def votePost(userId, int_postToVote):
     #for vno in currentVno:
     updatedVno = currentVno[0][0] + 1
   
-  print("updatedVno: ", updatedVno , "for the post: ", int_postToVote)
+  #print("updatedVno: ", updatedVno , "for the post: ", postToVote[0])
   
   #update votes table and increment vote  
-  cursor.execute('''INSERT INTO votes (pid, vno, vdate, uid) VALUES(?,?,?,?);''',(int_postToVote, updatedVno, currentDate, userId))
+  cursor.execute('''INSERT INTO votes (pid, vno, vdate, uid) VALUES(?,?,?,?);''',(postToVote, updatedVno, currentDate, userId))
   #commit changes
   connection.commit()
   #send to main menu
@@ -581,11 +590,11 @@ def votePost(userId, int_postToVote):
 
 ############################################################
 #ACCEPTED ANSWER / EDIT ANSWER
-def postActionMark(userId,int_postAnswToEdit):
+def postActionMark(userId,postAnswToEdit):
   global connection, cursor
   validResponse = False  
   #get tuple form answer table that has pid of and and qid of question it refers to 
-  cursor.execute("SELECT * FROM answers where pid =?",(int_postAnswToEdit,))
+  cursor.execute("SELECT * FROM answers where pid =?",(postAnswToEdit,))
   answersTable = cursor.fetchall()
   #the question it refers to is the second value in tuple
   question = answersTable[0][1]
@@ -596,15 +605,15 @@ def postActionMark(userId,int_postAnswToEdit):
 
   if acceptedAns == None:
   #update theaid in the questions table with the pid the user chose
-    cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(int_postAnswToEdit,question))
-    print("Accepted answer for question %s is now %s." %(question,int_postAnswToEdit))
+    cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(postAnswToEdit,question))
+    print("Accepted answer for question %s is now %s." %(question,postAnswToEdit))
   else:
     while validResponse == False:
       change = input("This question already has an accepted answer. Would you like to change it? (y/n)").lower()
       if change == 'y':
         validResponse = True
-        cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(int_postAnswToEdit,question))
-        print("Accepted answer for question %s is now %s." %(question,int_postAnswToEdit))
+        cursor.execute("UPDATE questions SET theaid = ? WHERE pid = ?",(postAnswToEdit,question))
+        print("Accepted answer for question %s is now %s." %(question,postAnswToEdit))
       elif change == 'n':
         validResponse = True
         print("Accepted answer not changed")
@@ -617,8 +626,43 @@ def postActionMark(userId,int_postAnswToEdit):
   return
 
 ############################################################
+#POST ACTION GIVE
+def postActionGive(user,userId):
+  global connection, cursor
+  currentDate = datetime.today().strftime('%Y-%m-%d')
+
+  #user cannot recv more than 1 badge on a single day
+  #user can recv same type of badge as long as diff day
+  #query badges to check if badgeName is valid 
+  cursor.execute("SELECT B.bname FROM badges B")
+  badges = cursor.fetchall()
+  badgeIsValid = False
+  while badgeIsValid != True:
+    badgeName = input("Enter the name of badge you would like to give: ")
+    for badge in badges:
+      if badge[0].lower() == badgeName:
+        badgeIsValid = True
+  
+  badgeLimit = False
+  #query ubadges and compare current date to bdate(if same cannot recv more than 1 per day)
+  cursor.execute("SELECT Ub.bdate FROM ubadges Ub WHERE Ub.uid = ? ", (user,))
+  dates = cursor.fetchall()
+  for date in dates:
+    if date[0] == currentDate:
+      badgeLimit = True
+  
+  if badgeLimit == True:
+    print("\nTHIS USER HAS REACHED BADGE LIMIT OF 1 PER DAY\n")
+  else:
+    #insert into ubadges if user has not recv a badge for that day
+    cursor.execute('''INSERT INTO ubadges (uid, bdate, bname) VALUES(?,?,?);''',(user, currentDate, badgeName))
+    connection.commit()
+    mainMenu(userId)
+
+
+############################################################
 #TAGS
-def postActionAddTag(userId, int_postToTag):
+def postActionAddTag(userId, postToTag):
   global connection, cursor
   global postId
 
@@ -626,7 +670,7 @@ def postActionAddTag(userId, int_postToTag):
   user_Tag = input("insert tag: ")
 
   #selected_posts_tags has all tags for the post
-  cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (int_postToTag,))
+  cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag[0],))
   selected_posts_tags = cursor.fetchall()
 
   print("selected posts tags: ", selected_posts_tags)
@@ -643,12 +687,75 @@ def postActionAddTag(userId, int_postToTag):
       #addTag(userId)
       mainMenu(userId)
   #update tags table 
-  cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(int_postToTag, user_Tag))
+  cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(postToTag[0], user_Tag))
   #confirms to user their tag was added
   print("\nTAG ADDED\n")
   #commit changes
   connection.commit()
   mainMenu(userId)
+
+
+
+
+
+############################################################
+#POST ACTION EDIT
+def editTitle(postToEdit):
+  global connection, cursor
+  cursor.execute("SELECT*FROM posts where pid = ?",(postToEdit,))
+  post = cursor.fetchall()
+  currentTitle = post[0][2]
+  print("The title currently is: ",currentTitle)
+  editedTitle = input("What would you like to change it to?: ")
+  cursor.execute("UPDATE posts SET title = ? WHERE pid = ?",(editedTitle,postToEdit))
+  print("Successfully edited title of post!")
+
+
+def editBody(postToEdit):
+	global connection, cursor
+	cursor.execute("SELECT*FROM posts where pid = ?",(postToEdit,))
+	post = cursor.fetchall()
+	currentBody = post[0][3]
+	print("The body currently is: ",currentBody)
+	editedBody = input("What would you like to change it to?: ")
+	cursor.execute("UPDATE posts SET body = ? WHERE pid = ?",(editedBody,postToEdit))
+	print("Successfully edited body of post!")
+
+def postActionEdit(userId,postToEdit):
+  global connection, cursor
+  validResponse = False
+
+  while validResponse == False:
+    print("What would you like to edit?")
+    print("1. Title\n2. Body\n3. Both")
+    option = int(input("Select an option: "))
+
+    if option == 1:
+      validResponse = True
+      editTitle(postToEdit)
+      
+      connection.commit()
+      mainMenu(userId)
+      
+    
+    elif option == 2:
+      validResponse = True
+      editBody(postToEdit)
+      
+      connection.commit()
+      mainMenu(userId)
+      
+    elif option == 3:
+      validResponse = True
+      editTitle(postToEdit)
+      print("\n")
+      editBody(postToEdit)
+      
+      connection.commit()
+      mainMenu(userId)
+      
+    else:
+      print("Invalid option. Please try again.\n")  
 
 
 ############################################################
