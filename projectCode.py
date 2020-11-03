@@ -2,7 +2,7 @@ import sys
 import sqlite3
 from datetime import datetime
 from collections import defaultdict
-
+import getpass
 class Votes:
       #create a static var for pid
       #access through an instance or direct thru the class 
@@ -27,7 +27,7 @@ def connect(path):
 def firstScreen():   
   flag = True
   while flag:
-    print("1)Login\n2)Signup")
+    print("1)Login\n2)Signup\n3)Exit")
     try:
       option = int(input("Select an option: "))
     except ValueError:
@@ -37,61 +37,63 @@ def firstScreen():
         login()
       elif option == 2:
         signup()
+      elif option == 3:
+        exit()
       else:
         print("Pick a valid option")
     
 ######################################################
 #SIGN UP AND LOGIN
 def signup():
-	global connection, cursor
-	currentDate = datetime.today().strftime('%Y-%m-%d')
-	
+  global connection, cursor
+  currentDate = datetime.today().strftime('%Y-%m-%d')
+  
 
-	validUid = False
-	while validUid == False:
-		userId = input("Enter a user id: ")
-		cursor.execute("SELECT * FROM users where uid = ?",(userId,))
+  validUid = False
+  while validUid == False:
+    userId = input("Enter a user id: ")
+    cursor.execute("SELECT * FROM users where uid = ?",(userId,))
 
-		if cursor.fetchall():
-			print("User id already taken. Please try again.")
-		else:
-			validUid = True
+    if cursor.fetchall():
+      print("User id already taken. Please try again.")
+    else:
+      validUid = True
 
-		
-	name = input("Enter your name: ")
-	password = input("Enter a password: ")
-	city = input("Enter your city: ")
-	print("Successful signup!")
-	
+    
+  name = input("Enter your name: ")
+  password = input("Enter a password: ")
+  city = input("Enter your city: ")
+  print("Successful signup!")
+  
 
-	
-	cursor.execute('''INSERT INTO users (uid, name, pwd, city, crdate) VALUES (?,?,?,?,?)''', (userId, name, password, city, currentDate))
-	
-	connection.commit()
-	
-	mainMenu(userId)
+  
+  cursor.execute('''INSERT INTO users (uid, name, pwd, city, crdate) VALUES (?,?,?,?,?)''', (userId, name, password, city, currentDate))
+  
+  connection.commit()
+  
+  mainMenu(userId)
 
 
 def login():
-	global connection, cursor
-	
+  global connection, cursor
+  
 
-	validLogin = False
-	while validLogin == False: 
-		uid = input("Please enter your user id: ")
-		pwd = input("Please enter you password: ")
-		
-		cursor.execute("SELECT * FROM users where uid = :uid and pwd= :pwd",{'uid':uid, 'pwd':pwd})
-		user = cursor.fetchall()
-		
-		if user:
-			print("Successful login!")
-			validLogin = True
-		else:
-			print("User id does not exist. Try again.")
+  validLogin = False
+  while validLogin == False: 
+    uid = input("Please enter your user id: ")
+    pwd = getpass.getpass("Please enter you password: ")
+    
+    cursor.execute("SELECT * FROM users where uid = :uid and pwd= :pwd",{'uid':uid, 'pwd':pwd})
+    user = cursor.fetchall()
+    
+    if user:
+      print("Successful login!")
+      validLogin = True
+    else:
+      print("User id does not exist. Try again.")
 
 
-	mainMenu(uid)
+  mainMenu(uid)
 ################################################################
 #MAIN MENU (AFTER LOGIN SCREEN)
 def mainMenu(userId):
@@ -110,12 +112,13 @@ def mainMenu(userId):
 
     #users option
     checkOption = True
-    while checkOption:
-      option = input("Select an option: ")
+    option = input("Select an option: ")
       #check for logout/exit
-      if option == 'i' or option == 'ii':
-        checkOption = False
-      #check if option is valid integer
+    if option == 'i' or option == 'ii':
+      checkOption = False
+    
+    
+    while checkOption:
       try:
         int_option = int(option)
       except ValueError:
@@ -125,6 +128,7 @@ def mainMenu(userId):
       if int_option <= 2 and int_option >=1:
         checkOption = False
     
+
     #i-->go to first screen
     if option == 'i':
       #back to login/signup screen
@@ -173,7 +177,7 @@ def postQuestion(userId):
   cursor.execute('''INSERT INTO questions (pid, theaid)VALUES(?,?);''',(postId,None))
 
   #update the tags table 
-  cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
+  #cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
 
   #commit changes
   connection.commit()
@@ -201,7 +205,8 @@ def searchPosts(userId):
 
 
   #tag words for specific post
-  cursor.execute("SELECT t.pid, t.tag FROM tags t, posts p WHERE p.pid = t.pid")
+  #cursor.execute("SELECT t.pid, t.tag FROM tags t, posts p WHERE p.pid = t.pid")
+  cursor.execute("SELECT t.pid, ifnull(t.tag,'') FROM tags t")
   tags = cursor.fetchall()
 
   #query for all distinct pids
@@ -219,6 +224,9 @@ def searchPosts(userId):
       #checks if t.pid matches distinct pids and its tag is not none
       if (tag[0] == pid[0]) and (tag[1] != ''):
         tagsDict[tag[0]].append(tag[1])
+      elif tag[0] != pid[0]:
+        tagsDict[pid[0]].append('')
+        
   #print("tagsDict: ", tagsDict)
 
   #combining the tagsDict and resultPosts
@@ -367,7 +375,7 @@ def searchPosts(userId):
         postIsQuestion = False
         while postIsQuestion != True:
           #user input which question post to answer
-          postToAnswer = input("ID of post to answer: ")
+          postToAnswer = input("ID of question post to answer: ")
           #get all question posts --> list of nested tupels
           cursor.execute("SELECT pid FROM questions")
           qposts = cursor.fetchall()
@@ -514,7 +522,7 @@ def postAnswer(userId,qpid):
   #cursor.execute('''UPDATE questions SET theaid = postID ;''',(postId, ))
 
   #update the tags table 
-  cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
+  #cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
 
   #commit changes
   connection.commit()
@@ -541,8 +549,8 @@ def votePost(userId, postToVote):
       postIsValid = True
       break
     #check if user alrdy voted on this post
-    elif (postToVote[0] == vote[0]) and (userId == vote[1]):
-      print("\nUSER: ",userId, " HAS ALREADY VOTED ON POST: ", postToVote[0])
+    elif (postToVote == vote[0]) and (userId == vote[1]):
+      print("\nUSER: ",userId, " HAS ALREADY VOTED ON POST: ", postToVote)
       #check if user has voted on all posts
       #query distinct pids from votes and compare with total posts to check if user has voted on all  posts
       cursor.execute("SELECT DISTINCT V.pid FROM votes V WHERE V.uid = ?", (userId,))
@@ -566,7 +574,7 @@ def votePost(userId, postToVote):
 
   #query the votes table to get vno for specific post
   #cursor.execute("SELECT vno FROM votes V,posts P, users U WHERE P.pid = ? AND U.uid = ? AND P.pid = V.pid ", (int_postToVote, userId))
-  cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (postToVote[0],))  
+  cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (postToVote,))  
   currentVno = cursor.fetchall()
   
   #print("posts with votes by current user: ", postsWithVotes)
@@ -670,7 +678,7 @@ def postActionAddTag(userId, postToTag):
   user_Tag = input("insert tag: ")
 
   #selected_posts_tags has all tags for the post
-  cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag[0],))
+  cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag,))
   selected_posts_tags = cursor.fetchall()
 
   print("selected posts tags: ", selected_posts_tags)
@@ -687,7 +695,7 @@ def postActionAddTag(userId, postToTag):
       #addTag(userId)
       mainMenu(userId)
   #update tags table 
-  cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(postToTag[0], user_Tag))
+  cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(postToTag, user_Tag))
   #confirms to user their tag was added
   print("\nTAG ADDED\n")
   #commit changes
@@ -712,14 +720,14 @@ def editTitle(postToEdit):
 
 
 def editBody(postToEdit):
-	global connection, cursor
-	cursor.execute("SELECT*FROM posts where pid = ?",(postToEdit,))
-	post = cursor.fetchall()
-	currentBody = post[0][3]
-	print("The body currently is: ",currentBody)
-	editedBody = input("What would you like to change it to?: ")
-	cursor.execute("UPDATE posts SET body = ? WHERE pid = ?",(editedBody,postToEdit))
-	print("Successfully edited body of post!")
+  global connection, cursor
+  cursor.execute("SELECT*FROM posts where pid = ?",(postToEdit,))
+  post = cursor.fetchall()
+  currentBody = post[0][3]
+  print("The body currently is: ",currentBody)
+  editedBody = input("What would you like to change it to?: ")
+  cursor.execute("UPDATE posts SET body = ? WHERE pid = ?",(editedBody,postToEdit))
+  print("Successfully edited body of post!")
 
 def postActionEdit(userId,postToEdit):
   global connection, cursor
