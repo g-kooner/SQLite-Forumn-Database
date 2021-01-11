@@ -3,20 +3,16 @@ import sqlite3
 from datetime import datetime
 from collections import defaultdict
 import getpass
-class Votes:
-      #create a static var for pid
-      #access through an instance or direct thru the class 
-      vno = 0
-
+import random
 #global variable 
 postId = 0
 
 ###################################################
 #CONNECT TO DATABASE AND SETUP CURSOR OBJECT
-def connect(path):
+def connect():
   global connection, cursor
-  connection = sqlite3.connect(path)
-  #connection = sqlite3.connect(sys.argv[1])
+  #connection = sqlite3.connect(path)
+  connection = sqlite3.connect(sys.argv[1])
   cursor = connection.cursor()
   cursor.execute(' PRAGMA forteign_keys=ON; ')
   connection.commit()
@@ -68,16 +64,12 @@ def signup():
 
   
   cursor.execute('''INSERT INTO users (uid, name, pwd, city, crdate) VALUES (?,?,?,?,?)''', (userId, name, password, city, currentDate))
-  
   connection.commit()
-  
   mainMenu(userId)
 
 
 def login():
   global connection, cursor
-  
-
   validLogin = False
   while validLogin == False: 
     uid = input("Please enter your user id: ")
@@ -155,29 +147,24 @@ def postQuestion(userId):
   qbody = input("Enter body of question: ")
 
   #access posts class and static var pid
-  #print("PostId: ", postId)
   #query the posts table for pid selected by user and specific userId
-  cursor.execute("SELECT P.pid FROM posts P")
-  postId = cursor.fetchall()
+  #cursor.execute("SELECT P.pid FROM posts P")
+  #postId = cursor.fetchall()
 
-  print("before increment postId: ", postId)
-  #intia;/first post made
-  if postId == []:
-    postId = 1
-  else:
-    #assign pid based on how many posts in db
-    postId = len(postId) + 1
-
-  print("after increment postId: ", postId)
+  cursor.execute("SELECT P.pid FROM posts P") 
+  posts = cursor.fetchall() 
+  n = random.randint(1000,9000) 
+  for post in posts: 
+    if post[0] == n: 
+      n = random.randint(1000,9000) 
 
   #update posts table
-  cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(postId,currentDate,qtitle,qbody,userId))
+  cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(n,currentDate,qtitle,qbody,userId))
 
   #update the questions table 
-  cursor.execute('''INSERT INTO questions (pid, theaid)VALUES(?,?);''',(postId,None))
+  cursor.execute('''INSERT INTO questions (pid, theaid)VALUES(?,?);''',(n,None))
 
   #update the tags table 
-  #cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
 
   #commit changes
   connection.commit()
@@ -199,10 +186,6 @@ def searchPosts(userId):
                                LEFT OUTER JOIN (SELECT a.qid AS qid, count(*) AS numAns FROM answers a GROUP BY qid) on p.pid = qid")
   #list of posts with info
   resultPosts = cursor.fetchall()
-  # for res in resultPosts:
-  #   print("res row: ", res )
-
-
 
   #tag words for specific post
   #cursor.execute("SELECT t.pid, t.tag FROM tags t, posts p WHERE p.pid = t.pid")
@@ -216,31 +199,24 @@ def searchPosts(userId):
 
   for tag in tags:
     for pid in distinctPids:
-      # print("type of tag0: ", type(tag[0]))
-      # print("tag[0] --> pid: ",tag[0])
-      # print("tag[1] --> tag: ",tag[1])
-      # print("pid: ",pid)
-      # print("\n")
       #checks if t.pid matches distinct pids and its tag is not none
       if (tag[0] == pid[0]) and (tag[1] != ''):
         tagsDict[tag[0]].append(tag[1])
       elif tag[0] != pid[0]:
         tagsDict[pid[0]].append('')
         
-  #print("tagsDict: ", tagsDict)
 
   #combining the tagsDict and resultPosts
   for keyTags in tagsDict.keys():
     for res in resultPosts:
       #comparing pids to check if same
-      if (res[0] == keyTags): #and (res[5] != ''):
+      if (res[0] == keyTags):
         #convert res to list 
         resList = list(res)
         #append tags to the res list
         resList.append(tuple(tagsDict[keyTags]))
         #convert back to tuple
         finalRes = tuple(resList)
-        #print("final res: ", finalRes)
         posts[finalRes] = 0
   
 
@@ -248,14 +224,12 @@ def searchPosts(userId):
   keywordFound = False
   #counts for keywords
   for res in posts:
-    #print("res: ", res)
     count = 0
     for word in keywords:
       #check if keyword in title or body
       if (word.lower() in res[2].lower()) or (word.lower() in res[3].lower()):
         count = count + 1
       #loop to check the tags --> increment count only if tag not none and count = 0
-      #print("count before tag: ", count)
       for tag in res[7]:
         if (tag != None) and (count == 0):
           if word.lower() in tag.lower():
@@ -265,34 +239,15 @@ def searchPosts(userId):
           #checks if @ least 1 keyword found
           #keyword found in atleast one post
           keywordFound = True
-      #print("count after tag: ", count)
   
   #keyword not found in all posts then loop back
   if not keywordFound:
     print("\nKEYWORD NOT FOUND\n")
-    mainMenu(userId)
-  
-  # print("\n")
-  # print("postDict: ")
-  # #print posts dict
-  # for keys,values in posts.items():
-  #   print("post info / value: ", keys,values)
-
-
-  # #print the posts dict
-  # print("\nposts dict: \n")
-  # #print(posts)
-
-  # for keys,values in posts.items():
-  #   print("post info: ", keys)
-  #   print("values: ",values)
-  
-  
+    mainMenu(userId)  
   
   orderedPosts = sorted(posts.items(), key=lambda x: x[1], reverse=True)
   newOrderedPost = []
   for row in orderedPosts:
-    #print("ordered posts: ", row)
     #if count is 0 do not include in newOrdered posts to print
     if row[1] != 0:
       newOrderedPost.append(row)
@@ -306,7 +261,6 @@ def searchPosts(userId):
   while flag == True:
     #format and print the resutls of search for post
     print("{:<8} {:<15} {:<15} {:<20} {:<10} {:<10} {:<10}".format('Post id','Date','Title','Body','Poster','Votes','Answers'))
-    #for i in orderedPosts[postStartIndex : postEndIndex]:
     for i in newOrderedPost[postStartIndex : postEndIndex]:
       body=i[0][3]
       title = i[0][2]
@@ -382,7 +336,6 @@ def searchPosts(userId):
           #check that pid is questions pid
           for qpid in qposts:
             if qpid[0] == postToAnswer:
-              print("qpost: ", qpid)
               if qpid[0] == None:
                 break
               else:
@@ -401,7 +354,6 @@ def searchPosts(userId):
           cursor.execute("SELECT pid FROM posts")
           posts = cursor.fetchall() 
           for post in posts:
-            #print("post: ", post)
             if post[0] == postToVote:
               if post[0] == None:
                 break
@@ -457,7 +409,6 @@ def searchPosts(userId):
             posts = cursor.fetchall() 
             for post in posts:
               if post[0] == postToTag:
-                #print("post: ", post)
                 if post[0] == None:
                   break
                 elif postToTag == post[0]:
@@ -477,7 +428,6 @@ def searchPosts(userId):
             posts = cursor.fetchall() 
             for post in posts:
               if post[0] == postToEdit:
-                #print("post: ", post)
                 if post[0] == None:
                   break
                 elif postToEdit == post[0]:
@@ -499,30 +449,20 @@ def postAnswer(userId,qpid):
   abody = input("Enter body of answer: ")
 
   #query the posts table for pid --> gives # of posts total
-  cursor.execute("SELECT P.pid FROM posts P")
-  postNum = cursor.fetchall()
+  #cursor.execute("SELECT P.pid FROM posts P")
+  #postNum = cursor.fetchall()
 
-  print("before increment postNum: ",postNum )
-  #intia;/first post made
-  if postNum == []:
-    postId = 1
-  else:
-    #increment the pid
-    postId = len(postNum) + 1
-
-  print("after increment postId: ", postId)
-
+  cursor.execute("SELECT P.pid FROM posts P") 
+  posts = cursor.fetchall() 
+  n = random.randint(1000,9000) 
+  for post in posts: 
+    if post[0] == n: 
+      n = random.randint(1000,9000) 
   #update posts table
-  cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(postId,currentDate,atitle,abody,userId))
+  cursor.execute('''INSERT INTO posts (pid, pdate, title, body, poster) VALUES(?,?,?,?,?);''',(n,currentDate,atitle,abody,userId))
 
   #update the answers table 
-  cursor.execute('''INSERT INTO answers (pid, qid)VALUES(?,?);''', (postId,qpid[0]))
-
-  #update the questions table 
-  #cursor.execute('''UPDATE questions SET theaid = postID ;''',(postId, ))
-
-  #update the tags table 
-  #cursor.execute('''INSERT INTO tags (pid, tag)VALUES(?,?);''',(postId,None))
+  cursor.execute('''INSERT INTO answers (pid, qid)VALUES(?,?);''', (n,qpid[0]))
 
   #commit changes
   connection.commit()
@@ -541,9 +481,7 @@ def votePost(userId, postToVote):
   #compare userID to query the votes table for matching pid and uid
   cursor.execute("SELECT pid,uid FROM votes")
   voteInfo = cursor.fetchall()
-  print("voteInfo: ", voteInfo)
   for vote in voteInfo:
-    #print("vote: ", vote)
     #empty or initial votes 
     if vote == None:
       postIsValid = True
@@ -560,9 +498,6 @@ def votePost(userId, postToVote):
       #sort and compare lists
       distinctPids.sort()
       totalPids.sort()
-      
-      #print("distinct pids: ", distinctPids)
-      #print("total pids: ", totalPids)
 
       #call main menu if voted on all posts 
       if distinctPids == totalPids:
@@ -573,20 +508,14 @@ def votePost(userId, postToVote):
       return  
 
   #query the votes table to get vno for specific post
-  #cursor.execute("SELECT vno FROM votes V,posts P, users U WHERE P.pid = ? AND U.uid = ? AND P.pid = V.pid ", (int_postToVote, userId))
-  cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (postToVote,))  
+  cursor.execute("SELECT pid,MAX(vno) as votes FROM votes V WHERE pid = ? group by pid", (postToVote,)) 
+  #cursor.execute("SELECT vno FROM votes V WHERE pid = ?", (postToVote,))  
   currentVno = cursor.fetchall()
-  
-  #print("posts with votes by current user: ", postsWithVotes)
-  print("currentVno: ", currentVno)
   if currentVno == []:
     updatedVno = 1
   else:
-    print("current vote #: ", currentVno)
-    #for vno in currentVno:
-    updatedVno = currentVno[0][0] + 1
-  
-  #print("updatedVno: ", updatedVno , "for the post: ", postToVote[0])
+    updatedVno = currentVno[0][1] + 1
+
   
   #update votes table and increment vote  
   cursor.execute('''INSERT INTO votes (pid, vno, vdate, uid) VALUES(?,?,?,?);''',(postToVote, updatedVno, currentDate, userId))
@@ -661,6 +590,7 @@ def postActionGive(user,userId):
   
   if badgeLimit == True:
     print("\nTHIS USER HAS REACHED BADGE LIMIT OF 1 PER DAY\n")
+    mainMenu(userId)
   else:
     #insert into ubadges if user has not recv a badge for that day
     cursor.execute('''INSERT INTO ubadges (uid, bdate, bname) VALUES(?,?,?);''',(user, currentDate, badgeName))
@@ -681,18 +611,13 @@ def postActionAddTag(userId, postToTag):
   cursor.execute("SELECT T.tag from tags T, posts P WHERE T.pid = P.pid AND P.pid = ?", (postToTag,))
   selected_posts_tags = cursor.fetchall()
 
-  print("selected posts tags: ", selected_posts_tags)
   #condition to check if tag already used
   for tag in selected_posts_tags:
-    #print("tag: ",tag)
-    #print("user tag: ", user_Tag)
-    #tag[0] will always be none
     #check if tag is not none
     if(tag[0] == None and len(selected_posts_tags) == 0):
       break
     if (tag[0] != None) and (user_Tag.lower() == tag[0].lower()):
       print("\nTAG IS ALREADY USED\n")
-      #addTag(userId)
       mainMenu(userId)
   #update tags table 
   cursor.execute('''INSERT INTO tags (pid, tag) VALUES(?,?);''',(postToTag, user_Tag))
@@ -771,11 +696,8 @@ def postActionEdit(userId,postToEdit):
 def main():
     global connection, cursor
     
-    path="./project1.db"
-    #instance of class posts --> static var pid
-    #postInstance = Posts() 
-
-    connect(path)
+    #path="./project1.db"
+    connect()
     firstScreen()
     connection.commit()
     connection.close()
